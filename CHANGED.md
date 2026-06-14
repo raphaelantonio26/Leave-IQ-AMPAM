@@ -20,6 +20,17 @@ Baseline at branch point: 82 tests passing, clean build (single ~2.1 MB chunk).
   **Deploy note:** the static host's build must be able to reach cdn.sheetjs.com
   at `npm install` time (added to HANDOFF).
 
+### P0 · ADP parse-boundary hardening (defense-in-depth) + tests
+- `src/lib/adp/parseRoster.js`: added safety caps around the xlsx reader —
+  reject input over `MAX_BYTES` (15 MB) *before* reading; cap processed rows
+  (`MAX_ROWS` 50000) and scanned columns (`MAX_COLS` 256); widened the try to
+  cover `sheet_to_json` so a malformed sheet returns `{errors}` instead of
+  throwing past the boundary. Row-building/normalization logic is **unchanged**
+  (downstream diff.js sees the identical row shape).
+- `tests/parseRoster.test.mjs` (new, +4 tests → 86): valid parse, oversized
+  rejection (no throw), malformed bytes (no throw), and a `__proto__`-header
+  workbook that neither pollutes `Object.prototype` nor reaches the row.
+
 ### Residual audit risk (documented, not force-fixed)
 - `jspdf` (CRITICAL) — fix is jspdf@4 (breaking, rejected by constraint). Runtime
   dep, but inputs are app-generated (notice/letter/binder data), not attacker
