@@ -19,7 +19,7 @@ in one file (`src/data/api.js`).
 ```bash
 npm install
 npm run dev      # demo mode out of the box
-npm test         # 29 unit tests: compliance engine + ADP pipeline
+npm test         # 100 unit tests: compliance, ADP pipeline, edge-function guards
 npm run build    # production bundle
 ```
 
@@ -74,9 +74,10 @@ src/
   App.jsx                    shell + Dashboard/Employees/Cases/Analytics/LawMap/Documents
   ui.jsx · rbac.js · i18n.js · lawdata.js
 supabase/
-  migrations/0001–0004       schema · RLS · triggers/RPC · reference seed
+  migrations/0001–0007       schema · RLS · triggers/RPC · seed · v1.2/v1.3/v2.0
   functions/cert-alerts/     email alerts (7d/3d/overdue cert, RTW 14d)
-tests/                       29 tests (node --test)
+  functions/ai-proxy/        server-side Anthropic proxy (HR-JWT gated)
+tests/                       100 tests (node --test)
 ```
 
 ## v1.2 additions

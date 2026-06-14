@@ -96,6 +96,12 @@ Baseline at branch point: 82 tests passing, clean build (single ~2.1 MB chunk).
   a silent null) — documented rather than changed to avoid a regression.
 - `tests/apiErrorPropagation.test.mjs` (new, +2 → 100).
 
+### P2 · README doc accuracy
+- `README.md`: migration inventory `0001–0004` → `0001–0007` (matches the seven
+  files HANDOFF already lists); stale "29 tests / 29 unit tests" → 100; added the
+  new `functions/ai-proxy/` line. HANDOFF already lists seven migrations — verified
+  consistent.
+
 ### Residual audit risk (documented, not force-fixed)
 - `jspdf` (CRITICAL) — fix is jspdf@4 (breaking, rejected by constraint). Runtime
   dep, but inputs are app-generated (notice/letter/binder data), not attacker
