@@ -7,28 +7,41 @@
 // returning the response unchanged so the client's parsing of `data.content`
 // is untouched.
 //
-// Auth is the gate (not CORS origin): the caller's JWT is validated and matched
-// to an active hr_users row (admin/specialist/legal). Anon-key-only or non-HR
-// callers are rejected, so the key/quota can't be spent by outsiders.
+// Auth is the primary gate: the caller's JWT is validated and matched to an
+// active hr_users row (admin/specialist/legal); anon-key-only or non-HR callers
+// are rejected, so the key/quota can't be spent by outsiders. CORS origin is
+// additionally locked to the ALLOWED_ORIGIN allowlist.
 //
-// Secret (supabase secrets set ...):
+// Config (supabase secrets set ...):
 //   ANTHROPIC_API_KEY — Anthropic API key (sk-ant-...)
+//   ALLOWED_ORIGIN    — comma-separated browser origin allowlist for CORS
+//                       (unset ⇒ cross-origin denied), e.g. https://leaveiq.example.app
 // SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are injected automatically.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { validateAiBody } from "./validate.js";
+import { pickAllowedOrigin } from "./cors.js";
 
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
 const DEFAULT_MODEL = "claude-sonnet-4-6";
 
-const cors = {
-  "Access-Control-Allow-Origin": "*",
+// CORS: lock Access-Control-Allow-Origin to an env allowlist (ALLOWED_ORIGIN,
+// comma-separated). Unset ⇒ deny all cross-origin (secure default). The JWT/HR
+// check below remains the real gate; this stops other origins' browser JS from
+// reading responses.
+const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGIN") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+const CORS_BASE = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Vary": "Origin",
 };
-const json = (body: unknown, status = 200) =>
+function corsHeaders(origin: string | null) {
+  const allow = pickAllowedOrigin(origin, ALLOWED_ORIGINS);
+  return { ...CORS_BASE, "Access-Control-Allow-Origin": allow ?? "null" };
+}
+const json = (body: unknown, status: number, cors: Record<string, string>) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
 // service role: validates the caller's token and reads their hr_users row
@@ -69,14 +82,15 @@ async function callAnthropic(payload: unknown): Promise<Response> {
 }
 
 Deno.serve(async (req) => {
+  const cors = corsHeaders(req.headers.get("Origin"));
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
-  if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
+  if (req.method !== "POST") return json({ error: "method not allowed" }, 405, cors);
 
   // 1) authenticate: valid JWT → active HR user
   const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
-  if (!token) return json({ error: "missing authorization" }, 401);
+  if (!token) return json({ error: "missing authorization" }, 401, cors);
   const { data: userData, error: userErr } = await admin.auth.getUser(token);
-  if (userErr || !userData?.user) return json({ error: "invalid session" }, 401);
+  if (userErr || !userData?.user) return json({ error: "invalid session" }, 401, cors);
   const { data: hr } = await admin
     .from("hr_users")
     .select("role, active")
@@ -84,24 +98,24 @@ Deno.serve(async (req) => {
     .eq("active", true)
     .maybeSingle();
   if (!hr || !["admin", "specialist", "legal"].includes(hr.role)) {
-    return json({ error: "not authorized" }, 403);
+    return json({ error: "not authorized" }, 403, cors);
   }
 
   // 2) require the secret (unset ⇒ client falls back to its offline draft)
-  if (!ANTHROPIC_API_KEY) return json({ error: "AI is not configured" }, 503);
+  if (!ANTHROPIC_API_KEY) return json({ error: "AI is not configured" }, 503, cors);
 
   // 3) validate + whitelist the request body, then forward to Anthropic
   let body: any;
-  try { body = await req.json(); } catch { return json({ error: "invalid body" }, 400); }
+  try { body = await req.json(); } catch { return json({ error: "invalid body" }, 400, cors); }
   const valid = validateAiBody(body, DEFAULT_MODEL);
-  if (!valid.ok) return json({ error: valid.error }, 400);
+  if (!valid.ok) return json({ error: valid.error }, 400, cors);
   const payload = valid.payload;
   let res: Response;
   try {
     res = await callAnthropic(payload);
   } catch (_e) {
-    return json({ error: "AI upstream unavailable" }, 502); // client falls back to its offline draft
+    return json({ error: "AI upstream unavailable" }, 502, cors); // client falls back to its offline draft
   }
   const data = await res.json().catch(() => ({}));
-  return json(data, res.ok ? 200 : res.status);
+  return json(data, res.ok ? 200 : res.status, cors);
 });

@@ -62,6 +62,17 @@ Baseline at branch point: 82 tests passing, clean build (single ~2.1 MB chunk).
   returns 400 on failure instead of forwarding loosely-shaped input to Anthropic.
 - `tests/validateAiBody.test.mjs` (new, +5 → 94).
 
+### P0 · ai-proxy CORS origin lock
+- `supabase/functions/ai-proxy/cors.js` (new): pure `pickAllowedOrigin`.
+- `supabase/functions/ai-proxy/index.ts`: replaced `Access-Control-Allow-Origin: *`
+  with a per-request value resolved against an `ALLOWED_ORIGIN` env allowlist
+  (comma-separated); unset ⇒ deny all cross-origin (secure default). CORS headers
+  are computed per request and threaded through every response; the JWT/HR gate
+  is unchanged. Header comment documents the new env var.
+- `tests/pickAllowedOrigin.test.mjs` (new, +4 → 98).
+- **Deploy note (HANDOFF):** set `ALLOWED_ORIGIN` to the app's URL or the AI
+  proxy's browser calls are blocked.
+
 ### Residual audit risk (documented, not force-fixed)
 - `jspdf` (CRITICAL) — fix is jspdf@4 (breaking, rejected by constraint). Runtime
   dep, but inputs are app-generated (notice/letter/binder data), not attacker
