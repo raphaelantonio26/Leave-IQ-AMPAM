@@ -6,7 +6,7 @@
  *   morningBriefing    — prioritized "Today's Actions" from a structured digest (1b)
  *   triageIntake       — designation suggestions + exposure flags on intake (1c)
  *
- * Implementation: Anthropic Messages API (claude-sonnet-4-20250514), proxied
+ * Implementation: Anthropic Messages API (claude-sonnet-4-6), proxied
  * by a server-side Supabase edge function (ai-proxy) that holds the key. The
  * system prompt is tightly scoped per call: entity, applicable law for the
  * designation set, communication type, and the hard compliance constraint.
@@ -19,7 +19,7 @@
 
 import { supabase } from "../../data/api.js";
 
-const MODEL = "claude-sonnet-4-20250514";
+const MODEL = "claude-sonnet-4-6";
 
 export const COMPLIANCE_CONSTRAINT =
   "Hard constraints: Do not include language that waives or could be read to waive employee rights under FEHA, CFRA, or FMLA. " +

@@ -20,7 +20,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
-const DEFAULT_MODEL = "claude-sonnet-4-20250514";
+const DEFAULT_MODEL = "claude-sonnet-4-6";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -35,6 +35,37 @@ const admin = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
+
+// Transient Anthropic errors (429 rate-limit, 500, 529 overloaded) are retryable;
+// without this a single blip silently degrades the AI engine to offline drafts.
+// Bounded: 3 attempts, exponential backoff + jitter (honoring retry-after), 30s/attempt.
+const RETRYABLE = new Set([429, 500, 529]);
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const backoff = (attempt: number) => Math.min(1000 * 2 ** attempt, 8000) + Math.random() * 250;
+async function callAnthropic(payload: unknown): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(ANTHROPIC_URL, {
+        method: "POST",
+        headers: {
+          "x-api-key": ANTHROPIC_API_KEY!,
+          "anthropic-version": ANTHROPIC_VERSION,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(30000),
+      });
+    } catch (e) {
+      if (attempt >= 2) throw e; // network error / timeout — exhausted
+      await sleep(backoff(attempt));
+      continue;
+    }
+    if (!RETRYABLE.has(res.status) || attempt >= 2) return res;
+    const retryAfter = Number(res.headers.get("retry-after"));
+    await sleep(retryAfter > 0 ? retryAfter * 1000 : backoff(attempt));
+  }
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -67,15 +98,12 @@ Deno.serve(async (req) => {
     system: body.system,
     messages: body.messages,
   };
-  const res = await fetch(ANTHROPIC_URL, {
-    method: "POST",
-    headers: {
-      "x-api-key": ANTHROPIC_API_KEY,
-      "anthropic-version": ANTHROPIC_VERSION,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  let res: Response;
+  try {
+    res = await callAnthropic(payload);
+  } catch (_e) {
+    return json({ error: "AI upstream unavailable" }, 502); // client falls back to its offline draft
+  }
   const data = await res.json().catch(() => ({}));
   return json(data, res.ok ? 200 : res.status);
 });
