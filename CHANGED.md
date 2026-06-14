@@ -31,6 +31,15 @@ Baseline at branch point: 82 tests passing, clean build (single ~2.1 MB chunk).
   rejection (no throw), malformed bytes (no throw), and a `__proto__`-header
   workbook that neither pollutes `Object.prototype` nor reaches the row.
 
+### P0 · cert-alerts email HTML injection
+- `supabase/functions/cert-alerts/escape.js` (new): pure `escapeHtml` helper,
+  importable by both the Deno function and node tests.
+- `supabase/functions/cert-alerts/index.ts`: escape every interpolated value in
+  the email body (`a.line` — which carries employee name + ref + payroll message —
+  and `a.ref`). Source is trusted today; escaped regardless.
+- `tests/escapeHtml.test.mjs` (new, +3 → 89): char escaping, name-based tag
+  injection blocked, null/undefined coercion.
+
 ### Residual audit risk (documented, not force-fixed)
 - `jspdf` (CRITICAL) — fix is jspdf@4 (breaking, rejected by constraint). Runtime
   dep, but inputs are app-generated (notice/letter/binder data), not attacker

@@ -20,6 +20,7 @@
 //   0 14 * * 1-5   (06:00 Pacific weekdays)
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { escapeHtml } from "./escape.js";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -111,8 +112,8 @@ Deno.serve(async () => {
         `<div style="font-family:Inter,Arial,sans-serif;max-width:560px">
            <div style="background:#6366f1;color:#fff;padding:12px 18px;border-radius:8px 8px 0 0;font-weight:700">LeaveIQ — AMPAM Parks Mechanical</div>
            <div style="border:1px solid #e2e8f0;border-top:none;padding:18px;border-radius:0 0 8px 8px">
-             <p style="margin:0 0 12px;font-size:14px;color:#1e293b">${a.line}</p>
-             <p style="margin:0;font-size:12px;color:#64748b">Open LeaveIQ → Cases → ${a.ref} to take action. This alert was generated automatically; reply is not monitored.</p>
+             <p style="margin:0 0 12px;font-size:14px;color:#1e293b">${escapeHtml(a.line)}</p>
+             <p style="margin:0;font-size:12px;color:#64748b">Open LeaveIQ → Cases → ${escapeHtml(a.ref)} to take action. This alert was generated automatically; reply is not monitored.</p>
            </div></div>`,
       );
       if (ok) {
