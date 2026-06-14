@@ -27,7 +27,10 @@ from `npm run dev` immediately.
 
 ## 3 · Frontend (Vercel or any static host)
 
-1. Push the repo to GitHub; import into Vercel (framework preset: Vite).
+1. Push the repo to GitHub; import into Vercel (framework preset: Vite). The
+   build fetches `xlsx` from cdn.sheetjs.com (pinned tarball — the maintained,
+   vuln-patched SheetJS build); the build environment must be able to reach it
+   (it can by default — note this if egress is locked down).
 2. Environment variables (Project → Settings → API for the values):
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
@@ -98,7 +101,7 @@ from `npm run dev` immediately.
   Deploy + key (only HR users with a valid session can invoke it):
   ```bash
   supabase functions deploy ai-proxy
-  supabase secrets set ANTHROPIC_API_KEY=sk-ant-xxx
+  supabase secrets set ANTHROPIC_API_KEY=sk-ant-xxx ALLOWED_ORIGIN=https://your-app-url
   ```
 - **E-sign** ships with the internal-attestation provider (the audited HR
   click). Wiring DocuSign = implementing two methods behind
@@ -136,7 +139,17 @@ from `npm run dev` immediately.
 - [ ] Run the morning briefing → action lines deep-link into cases.
 - [ ] Risk Signals shows the nine kinds with recommended actions; CSV includes the counsel-export column.
 - [ ] Run cert-alerts manually (`supabase functions invoke cert-alerts`) and
-      confirm the `{scanned, alerts, sent}` response.
+      confirm the `{scanned, alerts, sent, errors}` response (errors empty on a
+      healthy run).
+- [ ] **v2.2** Set `ALLOWED_ORIGIN` to the app URL, then confirm AI Draft works
+      from the browser — an unset or non-matching origin denies the cross-origin
+      call by design (auth still gates regardless).
+- [ ] **v2.2** Trigger a mutation while offline (or with a bad Supabase key) → a
+      branded error toast appears; no silent failure, no orphaned optimistic UI.
+- [ ] **v2.2** Drop an oversized or non-xlsx file on ADP Import → rejected with a
+      clear message, no crash.
+- [ ] **v2.2** `npm audit` reports no xlsx advisory; the remaining jspdf (critical)
+      and esbuild/vite (high) items are the documented breaking-bump-only residuals.
 
 ## Constraints honored
 

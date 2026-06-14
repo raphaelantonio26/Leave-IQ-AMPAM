@@ -123,6 +123,18 @@ Baseline at branch point: 82 tests passing, clean build (single ~2.1 MB chunk).
   their own eager chunks via manualChunks rather than route-deferred — fully
   deferring them would require refactoring core UI/chart usage (out of scope).
 
+### Final state
+- Tests: 82 → **100** (all green); `npm run build` clean, ~20 chunks, no
+  chunk-size warning. Engine math (`src/lib/compliance/*`, `src/lawdata.js`,
+  `src/lib/adp/diff.js`) verified **zero changes** via `git diff origin/main`.
+  Demo mode unchanged (offline, zero config); brand tokens untouched.
+- package.json 2.1.0 → 2.2.0; CHANGELOG `## 2.2.0` added; HANDOFF §6 + deploy
+  notes (`ALLOWED_ORIGIN`, cdn.sheetjs.com) updated.
+- **xlsx decision:** took the mission's *preferred* path — replaced the npm
+  package with the maintained SheetJS CDN build (`xlsx@0.20.3`), eliminating both
+  advisories outright (vs. only mitigating in code). Deploy dependency: build host
+  must reach cdn.sheetjs.com.
+
 ### Residual audit risk (documented, not force-fixed)
 - `jspdf` (CRITICAL) — fix is jspdf@4 (breaking, rejected by constraint). Runtime
   dep, but inputs are app-generated (notice/letter/binder data), not attacker

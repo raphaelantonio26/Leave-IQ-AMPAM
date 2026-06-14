@@ -1,5 +1,60 @@
 # Changelog
 
+## 2.2.0 — security & resilience hardening (no features)
+
+Edge-hardening pass for production deployment: dependency security, edge-function
+input/output hardening, mutation-failure visibility, and bundle code-splitting.
+The compliance engine (`src/lib/compliance/*`, `src/lawdata.js`,
+`src/lib/adp/diff.js`) is byte-for-byte unchanged; the 82 prior tests stayed green
+and the suite grew to 100. Demo mode still runs offline with zero config; brand
+tokens unchanged.
+
+### Security (P0)
+- **xlsx/SheetJS** prototype-pollution (GHSA-4r6h-8v6p-xvw6) + ReDoS
+  (GHSA-5pgg-2g8v-p4x9), with no fix on the npm registry, eliminated by replacing
+  the unmaintained npm `xlsx@0.18.5` with the maintained SheetJS CDN build pinned
+  to `xlsx@0.20.3`. `npm audit` no longer reports any xlsx advisory.
+- **ADP parse boundary** (`parseRoster`) hardened independently of the library:
+  reject >15 MB input before reading, cap processed rows/columns, and never throw
+  past the boundary on a malformed / oversized / prototype-pollution-shaped
+  workbook. (+4 tests)
+- **cert-alerts email** HTML-escapes every interpolated value (employee name, ref,
+  payroll message), so a name containing markup can't inject into the email. (+3)
+- **ai-proxy** validates the request body (system string; messages a non-empty,
+  bounded array; max_tokens clamp; field whitelist) before forwarding (+5), and
+  replaces `Access-Control-Allow-Origin: *` with an `ALLOWED_ORIGIN` allowlist
+  (deny-by-default when unset) (+4). The JWT + active-hr_users gate is unchanged.
+
+### Resilience (P1)
+- Every DataContext mutating action is guard-wrapped: a backend/validation failure
+  pops a branded error toast (reusing the existing Toast, provider-rendered, 4 s
+  auto-dismiss) and re-throws so per-component handling and return values are
+  preserved. Production state stays consistent (local writes land only via
+  `refresh()` after a successful api call). Single-data-provider architecture
+  unchanged.
+- `api.js`: fixed the one ignored Supabase error (`uploadDocument`'s trailing
+  update now routes through the throwing `ok` helper); `ok` exported + tested. (+2)
+- `cert-alerts` checks every query (cases fatal; certifications + hr_users degrade)
+  and reports `{ scanned, alerts, sent, errors }`.
+
+### Brand & docs (P2)
+- The `cert-alerts` alert email — the one surface that predated the v2.1 brand
+  sweep — rebranded from indigo `#6366f1` / Inter to AMPAM navy `#004B87` / Arial.
+- README migration inventory corrected to `0001–0007`; stale "29 tests" → 100;
+  the `ai-proxy` function listed.
+
+### Performance (P3)
+- Bundle split from one ~2.1 MB chunk into ~20 cacheable chunks via vendor
+  `manualChunks` + `React.lazy` route-level code-splitting behind a `Suspense`
+  fallback (the app-level `ErrorBoundary` catches chunk-load failures). Main app
+  chunk ~313 KB; the ~365 KB xlsx chunk defers to the ADP-import route; the
+  >1600 KB chunk-size warning is gone.
+
+### Residual (documented, not force-fixed)
+- `jspdf` (CRITICAL) and `esbuild`-via-`vite` (HIGH) remain — fixable only by the
+  breaking bumps (jspdf@4 / vite@8) that are out of scope. jspdf inputs are
+  app-generated (not attacker-controlled); esbuild is dev-server/build-only.
+
 ## 2.1.0 — AMPAM brand system, branded document letterhead, workforce status filters, stability hardening
 
 ### Brand system (per the official AMPAM Brand Guidelines)
