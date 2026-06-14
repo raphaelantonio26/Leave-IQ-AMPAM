@@ -92,9 +92,14 @@ from `npm run dev` immediately.
 
 ## 5d · v2.0 notes
 
-- **AI drafting** calls the Anthropic Messages API from the client; in
-  environments without access the UI falls back to labeled offline drafts —
-  no configuration required for demo mode.
+- **AI drafting** calls the Anthropic Messages API through the `ai-proxy` edge
+  function (the API key lives server-side, never in the browser); without it
+  the UI falls back to labeled offline drafts — no configuration for demo mode.
+  Deploy + key (only HR users with a valid session can invoke it):
+  ```bash
+  supabase functions deploy ai-proxy
+  supabase secrets set ANTHROPIC_API_KEY=sk-ant-xxx
+  ```
 - **E-sign** ships with the internal-attestation provider (the audited HR
   click). Wiring DocuSign = implementing two methods behind
   `src/lib/esign/index.js` per docs/ESIGN_CONNECTOR.md.

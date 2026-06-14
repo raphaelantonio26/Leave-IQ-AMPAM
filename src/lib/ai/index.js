@@ -6,7 +6,8 @@
  *   morningBriefing    — prioritized "Today's Actions" from a structured digest (1b)
  *   triageIntake       — designation suggestions + exposure flags on intake (1c)
  *
- * Implementation: Anthropic Messages API (claude-sonnet-4-20250514). The
+ * Implementation: Anthropic Messages API (claude-sonnet-4-20250514), proxied
+ * by a server-side Supabase edge function (ai-proxy) that holds the key. The
  * system prompt is tightly scoped per call: entity, applicable law for the
  * designation set, communication type, and the hard compliance constraint.
  * Every call degrades gracefully to a deterministic local fallback so demo
@@ -16,8 +17,9 @@
  * (name, dates, designation, balances). Medical notes are never included.
  */
 
+import { supabase } from "../../data/api.js";
+
 const MODEL = "claude-sonnet-4-20250514";
-const API = "https://api.anthropic.com/v1/messages";
 
 export const COMPLIANCE_CONSTRAINT =
   "Hard constraints: Do not include language that waives or could be read to waive employee rights under FEHA, CFRA, or FMLA. " +
@@ -26,14 +28,12 @@ export const COMPLIANCE_CONSTRAINT =
   "Never state legal conclusions; frame statutory references as informational.";
 
 async function callClaude(system, user, maxTokens = 1000) {
-  const res = await fetch(API, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, system, messages: [{ role: "user", content: user }] }),
+  if (!supabase) throw new Error("AI proxy unavailable"); // demo / unconfigured ⇒ local fallback
+  const { data, error } = await supabase.functions.invoke("ai-proxy", {
+    body: { model: MODEL, max_tokens: maxTokens, system, messages: [{ role: "user", content: user }] },
   });
-  if (!res.ok) throw new Error(`AI request failed (${res.status})`);
-  const data = await res.json();
-  const text = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
+  if (error) throw new Error(`AI request failed (${error.message})`);
+  const text = (data?.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
   if (!text) throw new Error("AI returned an empty draft");
   return text;
 }
