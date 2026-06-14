@@ -73,6 +73,18 @@ Baseline at branch point: 82 tests passing, clean build (single ~2.1 MB chunk).
 - **Deploy note (HANDOFF):** set `ALLOWED_ORIGIN` to the app's URL or the AI
   proxy's browser calls are blocked.
 
+### P1 · DataContext mutation-failure visibility (safety net)
+- `src/data/DataContext.jsx`: every mutating action is now `guard`-wrapped —
+  on any backend/validation error it pops an error toast (reusing the existing
+  branded `Toast` from ui.jsx, rendered by the provider, 4 s auto-dismiss) and
+  re-throws so existing per-component handling (inline form errors, success vs
+  failure branching) is preserved. Single-data-provider architecture unchanged.
+- State consistency: production paths already update local state only via
+  `refresh()` AFTER a successful api call, so a failed write orphans no
+  optimistic state — verified by reading every action. (No behavioral change to
+  state on success.)
+- No React test harness exists; verified via `npm run build` + manual review.
+
 ### Residual audit risk (documented, not force-fixed)
 - `jspdf` (CRITICAL) — fix is jspdf@4 (breaking, rejected by constraint). Runtime
   dep, but inputs are app-generated (notice/letter/binder data), not attacker

@@ -9,7 +9,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { SEED } from "./demoSeed.js";
 import { supabaseConfigured, api } from "./api.js";
-import { loadState, saveState } from "../ui.jsx";
+import { loadState, saveState, Toast } from "../ui.jsx";
 import { clocksFor, entitlementHours, scheduledHoursPerWeek } from "../lib/compliance/engine.js";
 import { primaryPayrollFlag } from "../lib/compliance/signals.js";
 import { buildTransition, joinDesignations, normalizeDesignations, clocksForSet, entitlementForSet } from "../lib/compliance/designations.js";
@@ -31,6 +31,7 @@ export function DataProvider({ children }) {
   const demo = !supabaseConfigured;
   const [loading, setLoading] = useState(!demo);
   const [error, setError] = useState(null);
+  const [toast, setToast] = useState(null); // action-failure visibility (auto-dismisses)
   const [entities, setEntities] = useState(SEED.entities);
   const [hrUsers, setHrUsers] = useState(SEED.hrUsers);
   const [employees, setEmployees] = useState(() => (demo ? loadState(LS.employees, SEED.employees) : []));
@@ -54,6 +55,7 @@ export function DataProvider({ children }) {
   useEffect(() => { if (demo) saveState(LS.templates, templates); }, [demo, templates]);
   useEffect(() => { if (demo) saveState(LS.packets, packets); }, [demo, packets]);
   useEffect(() => { if (demo) saveState(LS.messages, messages); }, [demo, messages]);
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 4000); return () => clearTimeout(t); }, [toast]);
 
   const refresh = useCallback(async () => {
     if (demo) return;
@@ -618,13 +620,26 @@ export function DataProvider({ children }) {
     setEmployees(SEED.employees); setCases(SEED.cases); setLog(SEED.intermittentLog); setAudit(SEED.auditEvents); setCerts(SEED.certifications); setCA(SEED.correctiveActions); setDocs(SEED.documents); setTemplates(SEED.templates); setPackets(SEED.packets); setMessages(SEED.messages);
   }, [demo]);
 
-  const value = useMemo(() => ({
-    demo, loading, error, entities, hrUsers, employees, cases, intermittentLog, auditEvents, certifications, correctiveActions,
-    documents, templates, packets, messages,
-    actions: { createCase, updateCase, logIntermittent, markCertReceived, attachDocument, importCommit, pushAudit, refresh, resetDemo, submitIntake, ackPayrollFlag, recordAdaStep, requestRecert, receiveCert, updateFfd, uploadDocument, reviewDocument, saveTemplate, archiveTemplate, savePacket, sendMessage, markMessagesRead, transitionDesignation, addSchedulePeriod, saveEntity, confirmTransfer, generateFormDocument, esignAdvance, resolveTriage, runAiTriage },
-  }), [demo, loading, error, entities, hrUsers, employees, cases, intermittentLog, auditEvents, certifications, correctiveActions, documents, templates, packets, messages, createCase, updateCase, logIntermittent, markCertReceived, attachDocument, importCommit, pushAudit, refresh, resetDemo, submitIntake, ackPayrollFlag, recordAdaStep, requestRecert, receiveCert, updateFfd, uploadDocument, reviewDocument, saveTemplate, archiveTemplate, savePacket, sendMessage, markMessagesRead, transitionDesignation, addSchedulePeriod, saveEntity, confirmTransfer, generateFormDocument, esignAdvance, resolveTriage, runAiTriage]);
+  const value = useMemo(() => {
+    // Resilience: every mutating action fails visibly. A backend/validation
+    // error pops an error toast and re-throws so existing per-component handling
+    // (inline form errors, success/failure branching) still runs. State stays
+    // consistent because production writes update local state only via refresh()
+    // AFTER a successful api call — a failed write leaves no orphaned state.
+    const guard = (fn) => async (...args) => {
+      try { return await fn(...args); }
+      catch (e) { setToast({ type: "error", message: e?.message || "Something went wrong. Please retry." }); throw e; }
+    };
+    const mutating = { createCase, updateCase, logIntermittent, markCertReceived, attachDocument, importCommit, submitIntake, ackPayrollFlag, recordAdaStep, requestRecert, receiveCert, updateFfd, uploadDocument, reviewDocument, saveTemplate, archiveTemplate, savePacket, sendMessage, markMessagesRead, transitionDesignation, addSchedulePeriod, saveEntity, confirmTransfer, generateFormDocument, esignAdvance, resolveTriage, runAiTriage };
+    const actions = { pushAudit, refresh, resetDemo };
+    for (const [k, fn] of Object.entries(mutating)) actions[k] = guard(fn);
+    return {
+      demo, loading, error, entities, hrUsers, employees, cases, intermittentLog, auditEvents, certifications, correctiveActions,
+      documents, templates, packets, messages, actions,
+    };
+  }, [demo, loading, error, entities, hrUsers, employees, cases, intermittentLog, auditEvents, certifications, correctiveActions, documents, templates, packets, messages, createCase, updateCase, logIntermittent, markCertReceived, attachDocument, importCommit, pushAudit, refresh, resetDemo, submitIntake, ackPayrollFlag, recordAdaStep, requestRecert, receiveCert, updateFfd, uploadDocument, reviewDocument, saveTemplate, archiveTemplate, savePacket, sendMessage, markMessagesRead, transitionDesignation, addSchedulePeriod, saveEntity, confirmTransfer, generateFormDocument, esignAdvance, resolveTriage, runAiTriage]);
 
-  return <DataCtx.Provider value={value}>{children}</DataCtx.Provider>;
+  return <DataCtx.Provider value={value}>{children}{toast && <Toast toast={toast} />}</DataCtx.Provider>;
 }
 
 function addDaysISO(d, n) { const x = new Date(`${String(d).slice(0, 10)}T00:00:00`); if (isNaN(x)) return ""; x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); }
