@@ -75,6 +75,7 @@ alter table case_documents
   add column if not exists signed_at timestamptz;
 
 -- ── refresh the masked view with v2.0 columns ───────────────────────────────
+drop view if exists cases_secure;
 create or replace view cases_secure
 with (security_invoker = true) as
 select

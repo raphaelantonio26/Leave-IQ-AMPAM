@@ -6,7 +6,7 @@ from `npm run dev` immediately.
 ## 1 · Supabase project
 
 1. Create a project at supabase.com (region: US West for CA latency).
-2. SQL Editor → run the four migrations **in order**:
+2. SQL Editor → run the seven migrations **in order**:
    `0001_schema.sql` → `0002_rls.sql` → `0003_triggers.sql` → `0004_seed.sql` → `0005_v12.sql` → `0006_v13.sql` → `0007_v20.sql`.
 3. `0004` also creates the private `case-documents` storage bucket; confirm it
    appears under Storage.
