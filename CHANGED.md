@@ -102,6 +102,13 @@ Baseline at branch point: 82 tests passing, clean build (single ~2.1 MB chunk).
   new `functions/ai-proxy/` line. HANDOFF already lists seven migrations — verified
   consistent.
 
+### P3 · bundle splitting — vendor manualChunks
+- `vite.config.js`: added `rollupOptions.output.manualChunks` splitting the heavy
+  vendor libs (react, recharts, jspdf+jszip, framer-motion, supabase, lucide,
+  xlsx) into separate, individually-cacheable chunks. Main chunk dropped from
+  ~2.1 MB to ~399 KB; the >1600 KB chunk-size warning is gone; 11+ chunks emit;
+  every route still renders (config-only, no code change). 100/100 tests.
+
 ### Residual audit risk (documented, not force-fixed)
 - `jspdf` (CRITICAL) — fix is jspdf@4 (breaking, rejected by constraint). Runtime
   dep, but inputs are app-generated (notice/letter/binder data), not attacker
