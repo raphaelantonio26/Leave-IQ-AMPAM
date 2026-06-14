@@ -133,6 +133,7 @@ begin
 end $$;
 
 -- ── refresh the masked view to include the new columns ─────────────────────
+drop view if exists cases_secure;
 create or replace view cases_secure
 with (security_invoker = true) as
 select

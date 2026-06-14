@@ -147,6 +147,7 @@ create policy msgs_employee_mark_read on case_messages for update to authenticat
   with check (sender_role = 'hr');   -- employees may only flip read_at on HR messages
 
 -- ── refresh the masked view with v1.3 columns ───────────────────────────────
+drop view if exists cases_secure;
 create or replace view cases_secure
 with (security_invoker = true) as
 select
