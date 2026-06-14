@@ -40,6 +40,13 @@ Baseline at branch point: 82 tests passing, clean build (single ~2.1 MB chunk).
 - `tests/escapeHtml.test.mjs` (new, +3 → 89): char escaping, name-based tag
   injection blocked, null/undefined coercion.
 
+### P1 · cert-alerts partial-failure reporting
+- `supabase/functions/cert-alerts/index.ts`: previously only the `cases` query
+  error was checked; `certifications` and `hr_users` errors were swallowed. Now
+  every query's error is captured — `cases` failure stays fatal (500), the other
+  two degrade into a `queryErrors` list surfaced in the JSON response, which is
+  now `{ scanned, alerts, sent, errors }` on every return path.
+
 ### Residual audit risk (documented, not force-fixed)
 - `jspdf` (CRITICAL) — fix is jspdf@4 (breaking, rejected by constraint). Runtime
   dep, but inputs are app-generated (notice/letter/binder data), not attacker
