@@ -38,6 +38,11 @@ const COLUMN_MAP = {
 
 const REQUIRED = ["file_number", "name"];
 
+/** Parse-boundary safety caps (defense-in-depth around the xlsx reader). */
+export const MAX_BYTES = 15 * 1024 * 1024; // 15 MB — far above any real ADP roster
+export const MAX_ROWS = 50000;             // bound memory/CPU on a hostile workbook
+export const MAX_COLS = 256;
+
 /** ADP company codes → LeaveIQ entity codes. */
 export const ENTITY_CODE_MAP = {
   AMP: "AMPAM", AMPAM: "AMPAM", "AMPAM PARKS MECHANICAL": "AMPAM",
@@ -106,17 +111,33 @@ function normalizeEmploymentType(v) {
  */
 export function parseRoster(data) {
   const errors = [], warnings = [];
-  let wb;
+
+  // ── parse-boundary guard: reject oversized input before reading anything ──
+  const size = data?.byteLength ?? data?.length ?? 0;
+  if (size > MAX_BYTES) {
+    return { rows: [], errors: [`File too large: ${(size / 1048576).toFixed(1)} MB exceeds the ${Math.round(MAX_BYTES / 1048576)} MB cap.`], warnings, meta: {} };
+  }
+
+  let wb, sheetName, grid;
   try {
     wb = XLSX.read(data, { type: data instanceof ArrayBuffer ? "array" : "buffer", cellDates: false });
+    sheetName = wb.SheetNames.includes(SHEET_NAME) ? SHEET_NAME : wb.SheetNames[0];
+    grid = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, raw: true, defval: "" });
   } catch (e) {
     return { rows: [], errors: [`Could not read workbook: ${e.message}`], warnings, meta: {} };
   }
-  const sheetName = wb.SheetNames.includes(SHEET_NAME) ? SHEET_NAME : wb.SheetNames[0];
   if (sheetName !== SHEET_NAME) warnings.push(`Worksheet "${SHEET_NAME}" not found — using "${sheetName}".`);
-  const ws = wb.Sheets[sheetName];
-  const grid = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: "" });
   if (!grid.length) return { rows: [], errors: ["Worksheet is empty."], warnings, meta: { sheetName } };
+
+  // Cap rows/columns so a workbook claiming millions of cells can't exhaust memory/CPU.
+  if (grid.length > MAX_ROWS + 1) {
+    warnings.push(`Workbook has ${grid.length - 1} data rows; only the first ${MAX_ROWS} were processed.`);
+    grid = grid.slice(0, MAX_ROWS + 1);
+  }
+  if (Array.isArray(grid[0]) && grid[0].length > MAX_COLS) {
+    warnings.push(`Workbook has ${grid[0].length} columns; only the first ${MAX_COLS} were scanned.`);
+    grid = grid.map((row) => (Array.isArray(row) ? row.slice(0, MAX_COLS) : row));
+  }
 
   const idx = buildHeaderIndex(grid[0]);
   for (const f of REQUIRED) {

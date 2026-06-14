@@ -2,7 +2,7 @@
  * Production shell. All reads/writes flow through DataContext (Supabase when
  * configured, deterministic demo seed otherwise). Statutory math comes from
  * src/lib/compliance/engine.js — never inlined in components. */
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Home, Users, FileText, BarChart2, MapPin, Download, Shield, Globe,
@@ -30,17 +30,20 @@ import { computeRisk, computeEligibility, clocksFor, entitlementHours, scheduled
 import { LETTER_TYPES, generateLetter, generatePDF } from "./pdf/letters.js";
 import { primaryPayrollFlag, ffdStatus, adaStatus, adaExposure, nextRecertDue, exhaustionAlerts, ADA_MILESTONES } from "./lib/compliance/signals.js";
 import { DataProvider, useData } from "./data/DataContext.jsx";
-import ImportADP from "./pages/ImportADP.jsx";
-import Reports from "./pages/Reports.jsx";
-import AuditLog from "./pages/AuditLog.jsx";
-import RiskSignals from "./pages/RiskSignals.jsx";
-import ManagerDashboard from "./pages/ManagerDashboard.jsx";
-import IntakePortal, { encodeIntakeToken } from "./pages/IntakePortal.jsx";
-import KnowledgeCenter from "./pages/KnowledgeCenter.jsx";
-import DocumentLibrary from "./pages/DocumentLibrary.jsx";
-import EmployeePortal from "./pages/EmployeePortal.jsx";
-import Workload from "./pages/Workload.jsx";
-import Entities from "./pages/Entities.jsx";
+import IntakePortal, { encodeIntakeToken } from "./pages/IntakePortal.jsx"; // eager: named export + intake landing route
+// Route-level code-splitting: heavy / rarely-first-paint pages load on demand,
+// deferring their own code and route-only deps (e.g. the ~365 KB xlsx chunk,
+// reachable only via the ADP import page). All rendered inside <Suspense> below.
+const ImportADP = lazy(() => import("./pages/ImportADP.jsx"));
+const Reports = lazy(() => import("./pages/Reports.jsx"));
+const AuditLog = lazy(() => import("./pages/AuditLog.jsx"));
+const RiskSignals = lazy(() => import("./pages/RiskSignals.jsx"));
+const ManagerDashboard = lazy(() => import("./pages/ManagerDashboard.jsx"));
+const KnowledgeCenter = lazy(() => import("./pages/KnowledgeCenter.jsx"));
+const DocumentLibrary = lazy(() => import("./pages/DocumentLibrary.jsx"));
+const EmployeePortal = lazy(() => import("./pages/EmployeePortal.jsx"));
+const Workload = lazy(() => import("./pages/Workload.jsx"));
+const Entities = lazy(() => import("./pages/Entities.jsx"));
 import { FORM_TYPES, buildFormPDF, buildCustomNoticePDF } from "./pdf/forms.js";
 import { ESIGN_STATUSES } from "./lib/esign/index.js";
 import { draftCommunication, morningBriefing, caseContextBlock } from "./lib/ai/index.js";
@@ -924,7 +927,7 @@ function Shell() {
         </div>
       </div>
       <main style={{ padding: 28, flex: 1, maxWidth: 1320, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
-        <AnimatePresence mode="wait"><div key={page + role + entityFilter}>{renderPage()}</div></AnimatePresence>
+        <AnimatePresence mode="wait"><div key={page + role + entityFilter}><Suspense fallback={<div style={{ padding: 28, color: S.text2, fontFamily: "Arial,Helvetica,sans-serif", fontSize: 14 }}>Loading…</div>}>{renderPage()}</Suspense></div></AnimatePresence>
       </main>
     </div>
     <AnimatePresence>{cmdOpen && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={closeCmd} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.6)", backdropFilter: "blur(2px)", zIndex: 1000, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: "12vh" }}>

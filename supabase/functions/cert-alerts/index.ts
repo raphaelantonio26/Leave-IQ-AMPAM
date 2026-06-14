@@ -20,6 +20,7 @@
 //   0 14 * * 1-5   (06:00 Pacific weekdays)
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { escapeHtml } from "./escape.js";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -48,16 +49,19 @@ async function sendEmail(to: string, subject: string, html: string) {
 }
 
 Deno.serve(async () => {
-  const { data: cases, error } = await supabase
+  const queryErrors: string[] = [];
+  const { data: cases, error: casesErr } = await supabase
     .from("leave_cases")
     .select("id, ref, status, cert_received, cert_due, end_date, owner_id, employee_id, payroll_flag, ffd, employees(name)")
     .in("status", ["Pending", "Active", "Approved"]);
-  const { data: openCerts } = await supabase
+  const { data: openCerts, error: certsErr } = await supabase
     .from("certifications")
     .select("id, case_id, kind, due_date, received_at")
     .is("received_at", null)
     .eq("kind", "recert");
-  if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+  // `cases` is the spine of the scan — a failure there is fatal; the rest degrade.
+  if (casesErr) return new Response(JSON.stringify({ error: casesErr.message }), { status: 500 });
+  if (certsErr) queryErrors.push(`certifications query failed: ${certsErr.message}`);
 
   const alerts: Alert[] = [];
   for (const c of cases ?? []) {
@@ -89,13 +93,14 @@ Deno.serve(async () => {
     const d = daysFromToday(rc.due_date);
     if (d === 3 || d < 0) alerts.push({ caseId: c.id, ref: c.ref, employee: emp, kind: "recert_due", subject: `[LeaveIQ] Recertification ${d < 0 ? "OVERDUE" : "due in 3 days"} — ${c.ref}`, line: `Recertification for ${emp} (${c.ref}) is ${d < 0 ? `${-d} day(s) overdue` : `due ${rc.due_date}`}.` });
   }
-  if (!alerts.length) return new Response(JSON.stringify({ sent: 0 }), { headers: { "Content-Type": "application/json" } });
+  if (!alerts.length) return new Response(JSON.stringify({ scanned: cases?.length ?? 0, alerts: 0, sent: 0, errors: queryErrors }), { headers: { "Content-Type": "application/json" } });
 
-  const { data: recipients } = await supabase
+  const { data: recipients, error: recipErr } = await supabase
     .from("hr_users")
     .select("id, email, name, role, notification_prefs")
     .in("role", ["admin", "specialist"])
     .eq("active", true);
+  if (recipErr) queryErrors.push(`hr_users query failed: ${recipErr.message}`);
 
   let sent = 0;
   for (const a of alerts) {
@@ -108,11 +113,11 @@ Deno.serve(async () => {
       const ok = await sendEmail(
         r.email,
         a.subject,
-        `<div style="font-family:Inter,Arial,sans-serif;max-width:560px">
-           <div style="background:#6366f1;color:#fff;padding:12px 18px;border-radius:8px 8px 0 0;font-weight:700">LeaveIQ — AMPAM Parks Mechanical</div>
+        `<div style="font-family:Arial,sans-serif;max-width:560px">
+           <div style="background:#004B87;color:#fff;padding:12px 18px;border-radius:8px 8px 0 0;font-weight:700">LeaveIQ — AMPAM Parks Mechanical</div>
            <div style="border:1px solid #e2e8f0;border-top:none;padding:18px;border-radius:0 0 8px 8px">
-             <p style="margin:0 0 12px;font-size:14px;color:#1e293b">${a.line}</p>
-             <p style="margin:0;font-size:12px;color:#64748b">Open LeaveIQ → Cases → ${a.ref} to take action. This alert was generated automatically; reply is not monitored.</p>
+             <p style="margin:0 0 12px;font-size:14px;color:#1e293b">${escapeHtml(a.line)}</p>
+             <p style="margin:0;font-size:12px;color:#64748b">Open LeaveIQ → Cases → ${escapeHtml(a.ref)} to take action. This alert was generated automatically; reply is not monitored.</p>
            </div></div>`,
       );
       if (ok) {
@@ -121,5 +126,5 @@ Deno.serve(async () => {
       }
     }
   }
-  return new Response(JSON.stringify({ scanned: cases?.length ?? 0, alerts: alerts.length, sent }), { headers: { "Content-Type": "application/json" } });
+  return new Response(JSON.stringify({ scanned: cases?.length ?? 0, alerts: alerts.length, sent, errors: queryErrors }), { headers: { "Content-Type": "application/json" } });
 });

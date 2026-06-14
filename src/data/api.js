@@ -15,7 +15,7 @@ const key = import.meta.env?.VITE_SUPABASE_ANON_KEY;
 export const supabaseConfigured = Boolean(url && key);
 export const supabase = supabaseConfigured ? createClient(url, key) : null;
 
-const ok = ({ data, error }) => { if (error) throw new Error(error.message); return data; };
+export const ok = ({ data, error }) => { if (error) throw new Error(error.message); return data; };
 
 export const api = {
   signIn: (email, password) => supabase.auth.signInWithPassword({ email, password }),
@@ -59,7 +59,7 @@ export const api = {
   uploadDocument: async (caseId, file, path) => {
     const r = await supabase.storage.from("case-documents").upload(path, file, { upsert: false });
     if (r.error) throw new Error(r.error.message);
-    return supabase.from("certifications").update({ file_path: r.data.path }).eq("case_id", caseId);
+    return supabase.from("certifications").update({ file_path: r.data.path }).eq("case_id", caseId).then(ok);
   },
 
   /* ── v1.3 ─────────────────────────────────────────────────────────────── */
