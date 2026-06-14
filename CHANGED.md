@@ -109,6 +109,20 @@ Baseline at branch point: 82 tests passing, clean build (single ~2.1 MB chunk).
   ~2.1 MB to ~399 KB; the >1600 KB chunk-size warning is gone; 11+ chunks emit;
   every route still renders (config-only, no code change). 100/100 tests.
 
+### P3 · route-level lazy loading
+- `src/App.jsx`: 10 heavy/rarely-first-paint page modules (ImportADP, Reports,
+  AuditLog, RiskSignals, ManagerDashboard, KnowledgeCenter, DocumentLibrary,
+  EmployeePortal, Workload, Entities) converted to `React.lazy`, rendered inside
+  a single `<Suspense>` with a branded fallback in the page `<main>`. The
+  app-level `ErrorBoundary` (main.jsx) catches any chunk-load failure → branded
+  recovery. Each page now emits its own chunk; the ~365 KB xlsx chunk is deferred
+  to the ADP-import route (its only importer); main app chunk ~399 KB → ~313 KB.
+  IntakePortal stays eager (named export + intake landing route). 100/100 tests.
+- **Not deferred (documented):** recharts is imported by `src/ui.jsx` (core, used
+  app-wide) and jspdf by core (App letters + DataContext forms), so they remain in
+  their own eager chunks via manualChunks rather than route-deferred — fully
+  deferring them would require refactoring core UI/chart usage (out of scope).
+
 ### Residual audit risk (documented, not force-fixed)
 - `jspdf` (CRITICAL) — fix is jspdf@4 (breaking, rejected by constraint). Runtime
   dep, but inputs are app-generated (notice/letter/binder data), not attacker
