@@ -85,6 +85,17 @@ Baseline at branch point: 82 tests passing, clean build (single ~2.1 MB chunk).
   state on success.)
 - No React test harness exists; verified via `npm run build` + manual review.
 
+### P1 · api.js error propagation
+- `src/data/api.js`: audited every Supabase call. All query/RPC calls route
+  through the `ok` helper (throws on `error`). Fixed the one gap: `uploadDocument`
+  returned the trailing `certifications.update(...)` without `.then(ok)`, so its
+  error was silently ignored — now checked. Exported `ok` so the propagation
+  contract is unit-tested.
+- The `.catch(() => [])` on optional v1.2/v1.3 tables in `fetchAll` is kept by
+  design (graceful degradation for DBs predating those tables; returns `[]`, not
+  a silent null) — documented rather than changed to avoid a regression.
+- `tests/apiErrorPropagation.test.mjs` (new, +2 → 100).
+
 ### Residual audit risk (documented, not force-fixed)
 - `jspdf` (CRITICAL) — fix is jspdf@4 (breaking, rejected by constraint). Runtime
   dep, but inputs are app-generated (notice/letter/binder data), not attacker
