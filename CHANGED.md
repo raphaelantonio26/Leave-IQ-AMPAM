@@ -47,6 +47,12 @@ Baseline at branch point: 82 tests passing, clean build (single ~2.1 MB chunk).
   two degrade into a `queryErrors` list surfaced in the JSON response, which is
   now `{ scanned, alerts, sent, errors }` on every return path.
 
+### P2 · cert-alerts email rebrand (was pre-v2.1)
+- `supabase/functions/cert-alerts/index.ts`: the alert email never got the v2.1
+  brand sweep — header `background:#6366f1` (old indigo) → AMPAM navy `#004B87`;
+  `font-family:Inter,...` → `Arial,sans-serif`. Now matches the in-app system on
+  this employee/HR-facing surface. No new colors introduced.
+
 ### Residual audit risk (documented, not force-fixed)
 - `jspdf` (CRITICAL) — fix is jspdf@4 (breaking, rejected by constraint). Runtime
   dep, but inputs are app-generated (notice/letter/binder data), not attacker
