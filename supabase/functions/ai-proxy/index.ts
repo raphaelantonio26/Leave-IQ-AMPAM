@@ -16,6 +16,7 @@
 // SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are injected automatically.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { validateAiBody } from "./validate.js";
 
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
@@ -89,15 +90,12 @@ Deno.serve(async (req) => {
   // 2) require the secret (unset ⇒ client falls back to its offline draft)
   if (!ANTHROPIC_API_KEY) return json({ error: "AI is not configured" }, 503);
 
-  // 3) forward to Anthropic (whitelist the fields the client sends)
+  // 3) validate + whitelist the request body, then forward to Anthropic
   let body: any;
   try { body = await req.json(); } catch { return json({ error: "invalid body" }, 400); }
-  const payload = {
-    model: typeof body.model === "string" ? body.model : DEFAULT_MODEL,
-    max_tokens: Math.min(Number(body.max_tokens) || 1000, 2000),
-    system: body.system,
-    messages: body.messages,
-  };
+  const valid = validateAiBody(body, DEFAULT_MODEL);
+  if (!valid.ok) return json({ error: valid.error }, 400);
+  const payload = valid.payload;
   let res: Response;
   try {
     res = await callAnthropic(payload);

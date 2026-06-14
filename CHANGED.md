@@ -53,6 +53,15 @@ Baseline at branch point: 82 tests passing, clean build (single ~2.1 MB chunk).
   `font-family:Inter,...` → `Arial,sans-serif`. Now matches the in-app system on
   this employee/HR-facing surface. No new colors introduced.
 
+### P0 · ai-proxy request-body validation
+- `supabase/functions/ai-proxy/validate.js` (new): pure `validateAiBody` —
+  type-checks `system` (string) and `messages` (non-empty, ≤50), keeps the
+  max_tokens clamp (≤2000), whitelists to exactly {model, max_tokens, system,
+  messages}, and rejects malformed bodies with a clear error.
+- `supabase/functions/ai-proxy/index.ts`: step 3 now calls `validateAiBody` and
+  returns 400 on failure instead of forwarding loosely-shaped input to Anthropic.
+- `tests/validateAiBody.test.mjs` (new, +5 → 94).
+
 ### Residual audit risk (documented, not force-fixed)
 - `jspdf` (CRITICAL) — fix is jspdf@4 (breaking, rejected by constraint). Runtime
   dep, but inputs are app-generated (notice/letter/binder data), not attacker
